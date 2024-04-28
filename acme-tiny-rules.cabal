@@ -8,5 +8,7 @@ executable acme-tiny-rules
                   , containers
                   , transformers
                   , gloss
+                  , gloss-juicy
+                  , JuicyPixels
   hs-source-dirs:   src
   ghc-options: -W -Wall -threaded
