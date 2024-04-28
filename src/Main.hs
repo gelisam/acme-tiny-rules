@@ -136,7 +136,8 @@ renderRule imgs (Rule {..})
   = translate ((rule_x0 + rule_x1) / 2) rule_y
   $ ( translate 0 1
     $ closestImage imgs
-    $ round (rule_x1 - rule_x0)
+    $ round
+    $ abs (rule_x1 - rule_x0)
     )
  <> rectangleSolid (rule_x1 - rule_x0) 2
 
