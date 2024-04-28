@@ -7,10 +7,20 @@ import Codec.Picture ( readImage )
 import Data.Foldable (toList)
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Maybe (isJust)
 import Data.Traversable (for)
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import Graphics.Gloss.Juicy (fromDynamicImage)
+
+
+----------
+-- Math --
+----------
+
+squared :: Float -> Float
+squared x
+  = x * x
 
 
 ------------
@@ -65,9 +75,10 @@ closestImage imgs key
     below = Map.lookupLE key imgs
     above = Map.lookupGE key imgs
 
------------
--- State --
------------
+
+--------------------
+-- Inference Rule --
+--------------------
 
 data Rule = Rule
   { rule_x0
@@ -77,59 +88,7 @@ data Rule = Rule
   , rule_y
       :: Float
   }
-
-setX1 :: Float -> Rule -> Rule
-setX1 x1 rule
-  = rule { rule_x1 = x1 }
-
-data World = World
-  { world_rules
-      :: [Rule]
-  , world_currentRule
-      :: Maybe Rule
-  }
-
-initialWorld :: World
-initialWorld = World
-  { world_rules = []
-  , world_currentRule = Nothing
-  }
-
-
---------------
--- Handlers --
---------------
-
-handleEvent :: Event -> World -> World
-handleEvent (EventKey (MouseButton LeftButton) Down _ (x, y)) world
-  = world
-  { world_currentRule
-      = Just
-      $ Rule x x y
-  }
-handleEvent (EventKey (MouseButton LeftButton) Up _ (_, _)) world@(World {..})
-  = world
-  { world_rules
-      = toList world_currentRule
-     ++ world_rules
-  , world_currentRule
-      = Nothing
-  }
-handleEvent (EventMotion (x, _)) world@(World {..})
-  = world
-  { world_currentRule
-      = fmap (setX1 x) world_currentRule
-  }
-handleEvent _ world
-  = world
-
-handleTick :: Float -> World -> World
-handleTick _ world = world
-
-
--------------
--- Display --
--------------
+  deriving Show
 
 renderRule :: Images -> Rule -> Picture
 renderRule imgs (Rule {..})
@@ -141,10 +100,159 @@ renderRule imgs (Rule {..})
     )
  <> rectangleSolid (rule_x1 - rule_x0) 2
 
+setX1 :: Float -> Rule -> Rule
+setX1 x1 rule
+  = rule { rule_x1 = x1 }
+
+normalizeRule :: Rule -> Rule
+normalizeRule (Rule x0 x1 y)
+  | x0 <= x1 = Rule x0 x1 y
+  | otherwise = Rule x1 x0 y
+
+longEnough :: Rule -> Bool
+longEnough (Rule x0 x1 _)
+  = x1 - x0 > 3
+
+
+------------
+-- Eraser --
+------------
+
+eraserRadius :: Float
+eraserRadius = 30.0
+
+renderEraser :: Point -> Picture
+renderEraser (x, y)
+  = translate x y
+  $ color (greyN 0.5)
+  $ circleSolid eraserRadius
+
+-- >        ...
+-- >       | o |     oy
+-- > ------'...'---- ry
+-- > x0    p q p'  x1
+eraseRule :: Point -> Rule -> [Rule]
+eraseRule (qx, oy) rule@(Rule x0 x1 ry)
+  | qoSquared >= poSquared || px >= x1 || px' <= x0
+    = [rule]
+  | otherwise
+    = filter longEnough
+      [ Rule x0 px ry
+      , Rule px' x1 ry
+      ]
+  where
+    qoSquared = squared (ry - oy)
+    poSquared = squared eraserRadius
+    pqSquared = poSquared - qoSquared
+    pq = sqrt pqSquared
+    px = qx - pq
+    px' = qx + pq
+
+
+-----------
+-- World --
+-----------
+
+data World = World
+  { world_rules
+      :: [Rule]
+  , world_currentRule
+      :: Maybe Rule
+  , world_eraser
+      :: Maybe Point
+  }
+  deriving Show
+
 renderWorld :: Images -> World -> Picture
 renderWorld imgs (World {..}) = Pictures
-  $ fmap (renderRule imgs) (toList world_currentRule)
+  $ ( fmap (renderRule imgs)
+    $ filter longEnough
+    $ fmap normalizeRule
+    $ toList world_currentRule
+    )
  ++ map (renderRule imgs) world_rules
+ ++ fmap renderEraser (toList world_eraser)
+
+initialWorld :: World
+initialWorld = World
+  { world_rules
+      = []
+  , world_currentRule
+      = Nothing
+  , world_eraser
+      = Nothing
+  }
+
+startNewRule :: Point -> World -> World
+startNewRule (x, y) world
+  = world
+  { world_currentRule
+      = Just
+      $ Rule x x y
+  }
+
+continueNewRule :: Point -> World -> World
+continueNewRule (x, _) world@(World {..})
+  = world
+  { world_currentRule
+      = fmap (setX1 x) world_currentRule
+  }
+
+completeNewRule :: World -> World
+completeNewRule world@(World {..})
+  = world
+  { world_rules
+      = ( filter longEnough
+        $ fmap normalizeRule
+        $ toList world_currentRule
+        )
+     ++ world_rules
+  , world_currentRule
+      = Nothing
+  }
+
+moveEraser :: Point -> World -> World
+moveEraser pt world@(World {..})
+  = world
+  { world_rules
+      = concatMap (eraseRule pt) world_rules
+  , world_eraser
+      = Just pt
+  }
+
+stopErasing :: World -> World
+stopErasing world
+  = world
+  { world_eraser
+      = Nothing
+  }
+
+
+--------------
+-- Handlers --
+--------------
+
+handleEvent :: Event -> World -> World
+handleEvent (EventKey (MouseButton LeftButton) Down _ pt) world
+  = startNewRule pt world
+handleEvent (EventKey (MouseButton LeftButton) Up _ _) world
+  = completeNewRule world
+handleEvent (EventKey (MouseButton RightButton) Down _ pt) world
+  = moveEraser pt world
+handleEvent (EventKey (MouseButton RightButton) Up _ _) world
+  = stopErasing world
+handleEvent (EventMotion pt) world@(World {..})
+  | isJust world_currentRule
+    = continueNewRule pt world
+  | isJust world_eraser
+    = moveEraser pt world
+  | otherwise
+    = world
+handleEvent _ world
+  = world
+
+handleTick :: Float -> World -> World
+handleTick _ world = world
 
 
 ----------
