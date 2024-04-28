@@ -37,7 +37,9 @@ imagePaths = Map.fromList
   , (225, "images/225.png")
   ]
 
-loadImages :: IO (Map Int Picture)
+type Images = Map Int Picture
+
+loadImages :: IO Images
 loadImages = do
   for imagePaths $ \path -> do
     readImage path >>= \case
@@ -46,6 +48,22 @@ loadImages = do
         Nothing -> fail "Unsupported image format"
         Just pic -> pure pic
 
+closestImage :: Images -> Int -> Picture
+closestImage imgs key
+  = case (below, above) of
+      (Just (k1, pic1), Just (k2, pic2))
+        | key - k1 < k2 - key
+          -> pic1
+        | otherwise
+          -> pic2
+      (Just (_, pic), _)
+        -> pic
+      (_, Just (_, pic))
+        -> pic
+      _ -> error "closestImage: empty Map"
+  where
+    below = Map.lookupLE key imgs
+    above = Map.lookupGE key imgs
 
 -----------
 -- State --
@@ -113,16 +131,19 @@ handleTick _ world = world
 -- Display --
 -------------
 
-renderRule :: Rule -> Picture
-renderRule (Rule {..}) = Line
-  [ (rule_x0, rule_y)
-  , (rule_x1, rule_y)
-  ]
+renderRule :: Images -> Rule -> Picture
+renderRule imgs (Rule {..})
+  = translate ((rule_x0 + rule_x1) / 2) rule_y
+  $ ( translate 0 1
+    $ closestImage imgs
+    $ round (rule_x1 - rule_x0)
+    )
+ <> rectangleSolid (rule_x1 - rule_x0) 2
 
-renderWorld :: World -> Picture
-renderWorld (World {..}) = Pictures
-  $ fmap renderRule (toList world_currentRule)
- ++ map renderRule world_rules
+renderWorld :: Images -> World -> Picture
+renderWorld imgs (World {..}) = Pictures
+  $ fmap (renderRule imgs) (toList world_currentRule)
+ ++ map (renderRule imgs) world_rules
 
 
 ----------
@@ -132,7 +153,7 @@ renderWorld (World {..}) = Pictures
 main :: IO ()
 main = do
   putStrLn "Loading images..."
-  pics <- loadImages
+  imgs <- loadImages
   putStrLn "Images loaded."
 
   play
@@ -140,7 +161,7 @@ main = do
     white
     30
     initialWorld
-    renderWorld
+    (renderWorld imgs)
     handleEvent
     handleTick
 
