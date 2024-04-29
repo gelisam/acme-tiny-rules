@@ -266,7 +266,7 @@ main = do
   putStrLn "Images loaded."
 
   play
-    (InWindow "Tiny Rules" (500, 500) (10, 10))
+    (InWindow "Tiny Rules" (300, 300) (10, 10))
     white
     30
     initialWorld
