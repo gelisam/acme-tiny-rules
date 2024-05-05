@@ -2,7 +2,7 @@
 
 ![nonsense inference rules appear and disappear around the lines drawn and erased by the user](demo.gif)
 
-`acme-tiny-rules` allows you to create beautiful (but nonsensical) inference rules by drawing and erasing lines. It is a parody of [Tiny Glade](https://store.steampowered.com/app/2198150/Tiny_Glade/), which allows you to create beautiful castles by drawing and erasing lines. Here is the part of the Tiny Glade trailer I was trying to emulate:
+`acme-tiny-rules` allows you to create beautiful (but nonsensical) inference rules by drawing and erasing lines. Left-click to draw a line, right-click to erase. It is a parody of [Tiny Glade](https://store.steampowered.com/app/2198150/Tiny_Glade/), which allows you to create beautiful castles by drawing and erasing lines. Here is the part of the Tiny Glade trailer I was trying to emulate:
 
 ![a beautiful castle appears and disappears around the lines drawn and erased by the user](tiny-glades.gif)
 
